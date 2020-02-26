@@ -68,6 +68,11 @@ grid .btn< .l .btn> -row 1
 wm attributes . -topmost
 wm focusmodel . active
 
+proc show_delay {} {
+	global is_active
+	after 100 {if {$is_active} {wm deiconify .}}
+}
+
 proc candwin_activate {msg} {
 	global display_limit candidate_index nr_candidates is_active listvar
 	set f1 [lindex $msg 1]
@@ -91,7 +96,7 @@ proc candwin_activate {msg} {
 	set candidate_index -1
 	set nr_candidates [llength $listvar]
 	set is_active 1
-	wm deiconify .
+	show_delay
 }
 proc candwin_select {msg} {
 	global candidate_index nr_candidates display_limit
@@ -108,7 +113,7 @@ proc candwin_move {msg} {
 proc candwin_show {msg} {
 	global is_active
 	if {$is_active} {
-		wm deiconify .
+		show_delay
 	}
 }
 proc candwin_hide {msg} {
@@ -155,7 +160,7 @@ proc candwin_set_page_candidates {msg} {
 proc candwin_show_page {msg} {
 	set page [lindex $msg 1]
 	debug_print "candwin_show_page:$page\n"
-	wm deiconify .
+	show_delay
 }
 proc candwin_show_caret_state {msg} {}
 proc candwin_update_caret_state {msg} {}

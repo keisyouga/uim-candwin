@@ -104,6 +104,10 @@ $top->g_wm_focusmodel('active');
 # $top->g_wm_overrideredirect(1);
 # $top->g_wm_attributes(-type => "tooltip");
 
+sub show_delay {
+	Tkx::after(100, sub {$top->g_wm_deiconify if ($is_active);});
+}
+
 ################################################################
 ## handlers
 sub candwin_activate {
@@ -128,7 +132,7 @@ sub candwin_activate {
 	$candidate_index = -1;
 	$nr_candidates = scalar @_;
 	$is_active = 1;
-	$top->g_wm_deiconify;
+	show_delay();
 }
 sub candwin_select {
 	$candidate_index = $_[1];
@@ -144,7 +148,7 @@ sub candwin_move {
 }
 sub candwin_show {
 	if ($is_active) {
-		$top->g_wm_deiconify;
+		show_delay();
 	}
 }
 sub candwin_hide {
@@ -161,7 +165,6 @@ sub candwin_set_nr_candidates {
 	$label->configure(-text => "0/$nr_candidates");
 	$display_limit = $_[2];
 	$is_active = 1;
-	#$top->g_wm_deiconify;
 }
 sub candwin_set_page_candidates {
 	shift;                      # command name
@@ -190,7 +193,8 @@ sub candwin_show_page {
 	my $page = $_[1];
 	debug_print("candwin_show_page:$page\n");
 	# TODO: what to do?
-	$top->g_wm_deiconify;
+
+	show_delay();
 }
 sub candwin_show_caret_state {}
 sub candwin_update_caret_state {}
