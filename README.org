@@ -1,0 +1,22 @@
+* uim-candwin test program
+
+show candidate window for uim-xim using tcl/tk.
+
+- uim-candwin-test0001.tcl
+tcl/tk version.
+
+- uim-candwin-test0001.pl
+perl/tkx version.
+
+* try it
+
+copy program to /usr/lib/uim/
+#+BEGIN_SRC sh
+UIM_CANDWIN_PROG=program_name
+export UIM_CANDWIN_PROG
+uim-xim &
+#+END_SRC
+
+* bugs
+
+probably have many bugs.
