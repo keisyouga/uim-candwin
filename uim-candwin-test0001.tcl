@@ -21,7 +21,7 @@ proc debug_print {msg} {
 wm withdraw .
 tk useinputmethods 0
 set listvar [list]
-listbox .lbox -listvariable listvar
+listbox .lbox -listvariable listvar -exportselection 0
 
 proc send_index {index} {
 	global nr_candidates candidate_index
@@ -37,6 +37,10 @@ proc send_index {index} {
 bind .lbox <<ListboxSelect>> {
 	global candidate_index display_limit
 	set cursel [.lbox curselection]
+	if {[expr ! [string is digit -strict $cursel]]} {
+		debug_print "<<ListboxSelect>>:$cursel\n"
+		return
+	}
 	set page [expr $candidate_index / $display_limit]
 	debug_print "$cursel/$page\n"
 	send_index [expr $page * $display_limit + $cursel]

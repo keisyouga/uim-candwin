@@ -40,7 +40,7 @@ Tkx::tk_useinputmethods(0);
 
 ## create listbox
 my $listvar;
-my $lbox = $top->new_listbox(-listvariable => \$listvar);
+my $lbox = $top->new_listbox(-listvariable => \$listvar, -exportselection => 0);
 # specify font
 #$lbox->configure(-font => ['WenQuanYi Micro Hei Mono', 12]);
 
@@ -62,6 +62,11 @@ sub send_index {
 ## specify callback on listbox item select
 $lbox->g_bind('<<ListboxSelect>>', sub {
 	              my $cursel = $lbox->curselection;
+	              # workaround; sometimes called without data
+	              if ($cursel !~ /^[0-9]+$/) {
+		              debug_print "<<ListboxSelect>>:$cursel\n";
+		              return;
+	              }
 	              # current page
 	              my $page = sprintf("%i", $candidate_index / $display_limit);
 	              send_index($page * $display_limit + $cursel);
