@@ -262,7 +262,6 @@ sub read_cb {
 }
 
 ## watch stdin
-my $interp = Tcl->new;
-$interp->call('fileevent', 'stdin', readable => sub { read_cb(\*STDIN); });
+Tkx::fileevent('stdin', 'readable', [ \&read_cb, \*STDIN ]);
 
 Tkx::MainLoop;
