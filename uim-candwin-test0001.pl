@@ -12,13 +12,6 @@ sub debug_print {
 	}
 }
 
-## perl's list to tcl's list string
-## FIXME: problem if string containing '{', '}'
-sub tcl_list {
-	my $cnames = ''; foreach my $i (@_) {$cnames = $cnames . ' {' . $i . '}';}
-	return $cnames;
-}
-
 ################################################################
 ## global variables
 my $is_active = 0;
@@ -27,23 +20,130 @@ my $nr_candidates;
 my $display_limit;
 
 ## main window
-my $top = Tkx::widget->new(".");
+my $top = undef;
 
-## hide window
-$top->g_wm_withdraw;
+## main windows position
+my $topx;
+my $topy;
+
+## stores candidates list in current page
+my @page_candidtes;
+
+## listbox widget used for display candidates
+my $top_list = undef;
+
+## label widget used for display position/number of candidates
+my $top_label = undef;
+
+## container for main window, hide it
+my $mw = Tkx::widget->new(".");
+$mw->g_wm_withdraw;
 
 ## do not use xim
 ## if use xim, when select item on listbox, uim-xim will get InputContext
 ## of tk-window's other than target-window's and crash.
 Tkx::tk_useinputmethods(0);
-#Tkx::tk_useinputmethods(-display => '.', 0);
 
-## create listbox
-my $listvar;
-my $lbox = $top->new_listbox(-listvariable => \$listvar, -exportselection => 0);
-# specify font
-#$lbox->configure(-font => ['WenQuanYi Micro Hei Mono', 12]);
+## callback for event item selected in listbox
+sub listboxselect_cb {
+	my $listbox = shift;
 
+	my $cursel = $listbox->curselection;
+	# workaround; sometimes called without data
+	if ($cursel !~ /^[0-9]+$/) {
+		debug_print "<<ListboxSelect>>:$cursel\n";
+		return;
+	}
+	# current page
+	my $page = sprintf("%i", $candidate_index / $display_limit);
+	send_index($page * $display_limit + $cursel);
+}
+
+sub create_listbox {
+	my $parent = shift;
+	my $list = $parent->new_listbox(-exportselection => 0);
+	set_listbox($list, \@page_candidtes);
+	#$list->configure(-font => ['WenQuanYi Micro Hei Mono', 12]);
+	$list->g_bind('<<ListboxSelect>>', [\&listboxselect_cb, $list]);
+	return $list;
+}
+
+sub button_left_cb {
+	my $i = $candidate_index - $display_limit;
+	if ($i < 0) {
+		my $pos = $candidate_index % $display_limit;
+		my $lastpage = sprintf("%i", $nr_candidates / $display_limit);
+		$i = $lastpage * $display_limit + $pos;
+	}
+	send_index($i);
+}
+
+sub create_label {
+	my $parent = shift;
+	## label: display candidate_index/nr_candidates
+	my $label = $parent->new_label(-text => "0/0");
+	return $label;
+}
+
+sub create_button_left {
+	my $parent = shift;
+	## < button
+	my $btn_left = $parent->new_button(-text => "<",
+	                                   -command => \&button_left_cb);
+	return $btn_left;
+}
+
+sub button_right_cb {
+	my $i = $candidate_index + $display_limit;
+	my $lastpage = sprintf("%i", $nr_candidates / $display_limit);
+	if ($i >= ($lastpage + 1) * $display_limit) {
+		$i = $candidate_index % $display_limit;
+	}
+	send_index($i);
+}
+
+sub create_button_right {
+	my $parent = shift;
+	## > button
+	my $btn_right = $parent->new_button(-text => ">",
+	                                    -command => \&button_right_cb);
+	return $btn_right;
+}
+
+sub move_window {
+	my ($w, $x, $y) = @_;
+	$w->g_wm_geometry(sprintf("+%i+%i", $x, $y));
+}
+
+## create candwin-window, listbox, label, button_left, button_right
+sub create_window {
+	if ($top) {
+		$top->g_destroy;
+	}
+	if (!$is_active) {
+		return;
+	}
+	$top = $mw->new_toplevel();
+	$top->g_wm_withdraw();
+	$top->g_wm_overrideredirect(1);
+	move_window($top, $topx, $topy);
+	#$top->g_wm_attributes(-type => "tooltip");
+	#$top->g_wm_attributes(-topmost => 1); # always on top
+	#$top->g_wm_focusmodel('active');      # do not focus window
+
+	$top_list = create_listbox($top);
+	$top_label = create_label($top);
+	$top_label->configure(-text => 1 + $candidate_index . "/$nr_candidates");
+	my $b1 = create_button_left($top);
+	my $b2 = create_button_right($top);
+
+	select_list();
+
+	Tkx::grid($top_list, -row => 0, -column => 0, -columnspan => 3);
+	Tkx::grid($b1, $top_label, $b2, -row => 1);
+
+	$top->g_wm_deiconify();
+}
 
 ## send index message
 sub send_index {
@@ -59,58 +159,26 @@ sub send_index {
 	$candidate_index = $index;
 }
 
-## specify callback on listbox item select
-$lbox->g_bind('<<ListboxSelect>>', sub {
-	              my $cursel = $lbox->curselection;
-	              # workaround; sometimes called without data
-	              if ($cursel !~ /^[0-9]+$/) {
-		              debug_print "<<ListboxSelect>>:$cursel\n";
-		              return;
-	              }
-	              # current page
-	              my $page = sprintf("%i", $candidate_index / $display_limit);
-	              send_index($page * $display_limit + $cursel);
-              });
-
-## < button
-my $btn_l = $top->new_button(-text => "<", -command => sub {
-	                               my $i = $candidate_index - $display_limit;
-	                               if ($i < 0) {
-		                               my $pos = $candidate_index % $display_limit;
-		                               my $lastpage = sprintf("%i", $nr_candidates / $display_limit);
-		                               $i = $lastpage * $display_limit + $pos;
-	                               }
-	                               send_index($i);
-                               });
-
-## > button
-my $btn_r = $top->new_button(-text => ">", -command => sub {
-	                               my $i = $candidate_index + $display_limit;
-	                               my $lastpage = sprintf("%i", $nr_candidates / $display_limit);
-	                               if ($i >= ($lastpage + 1) * $display_limit) {
-		                               $i = $candidate_index % $display_limit;
-	                               }
-	                               send_index($i);
-                               });
-
-## label: display candidate_index/nr_candidates
-my $label = $top->new_label(-text => "0/0");
-
-Tkx::grid($lbox, -row => 0, -column => 0, -columnspan => 3);
-Tkx::grid($btn_l, $label, $btn_r, -row => 1);
-
-## always on top
-$top->g_wm_attributes(-topmost => 1);
-
-## do not focus window
-$top->g_wm_focusmodel('active');
-
-## remove titlebar (problem; this ignores topmost)
-# $top->g_wm_overrideredirect(1);
-# $top->g_wm_attributes(-type => "tooltip");
-
 sub show_delay {
-	Tkx::after(100, sub {$top->g_wm_deiconify if ($is_active);});
+	Tkx::after(100, \&create_window);
+}
+
+## set listbox items
+sub set_listbox {
+	my $listbox = shift;
+	my $cands = shift;
+
+	$listbox->delete(0, 'end');
+	map {
+		$listbox->insert('end', $_);
+	} @$cands;
+}
+
+## select listbox item, update label
+sub select_list {
+	$top_label->configure(-text => 1 + $candidate_index . "/$nr_candidates");
+	$top_list->selection_clear(0, $display_limit);
+	$top_list->selection_set($candidate_index % $display_limit);
 }
 
 ################################################################
@@ -130,9 +198,10 @@ sub candwin_activate {
 		shift;                  # display_limit
 	}
 
-	#$listvar = tcl_list(map {s/\a/ /gr;} @_);
-	$listvar = Tkx::list(map {s/\a/ /gr;} @_);
-	debug_print $listvar;
+	@page_candidtes = map {s/\a/ /gr} @_;
+	if ($top) {
+		set_listbox($top_list, \@page_candidtes);
+	}
 
 	$candidate_index = -1;
 	$nr_candidates = scalar @_;
@@ -141,15 +210,19 @@ sub candwin_activate {
 }
 sub candwin_select {
 	$candidate_index = $_[1];
-	$label->configure(-text => 1 + $candidate_index . "/$nr_candidates");
-	$lbox->selection_clear(0, $display_limit);
-	$lbox->selection_set($candidate_index % $display_limit);
+	if ($top) {
+		select_list();
+	}
 }
 sub candwin_move {
 	my ($cmd, $x, $y) = @_;
 	debug_print "candwin_move $x, $y\n";
-	$top->g_wm_geometry("+$_[1]+$_[2]");
 	# todo: adjust position to fit screen
+	$topx = $x;
+	$topy = $y;
+	if ($top) {
+		move_window($top, $x, $y);
+	}
 }
 sub candwin_show {
 	if ($is_active) {
@@ -157,18 +230,28 @@ sub candwin_show {
 	}
 }
 sub candwin_hide {
-	$top->g_wm_withdraw;
+	if ($top) {
+		$top->g_destroy();
+		$top = undef;
+	}
+	# this is necessary because create_window will be called after hide
+	$is_active = 0;
 }
 sub candwin_deactivate {
-	$top->g_wm_withdraw;
+	if ($top) {
+		$top->g_destroy();
+		$top = undef;
+	}
 	$is_active = 0;
 }
 sub candwin_set_nr_candidates {
 	$candidate_index = -1;
 	$nr_candidates = $_[1];
-
-	$label->configure(-text => "0/$nr_candidates");
 	$display_limit = $_[2];
+
+	if ($top) {
+		$top_label->configure(-text => "0/$nr_candidates");
+	}
 	$is_active = 1;
 }
 sub candwin_set_page_candidates {
@@ -187,12 +270,10 @@ sub candwin_set_page_candidates {
 	}
 
 	## set listbox variable
-	# escape " { }
-	#my @tmp = map { $_ =~ s/["{}]/\\$&/gr; } @_;
-	#$listvar = tcl_list(map {s/\a/ /gr;} @tmp);
-	# Tkx::list works fine
-	$listvar = Tkx::list(map {s/\a/ /gr;} @_);
-	debug_print "$listvar\n";
+	@page_candidtes = map {s/\a/ /gr} @_;
+	if ($top) {
+		set_listbox($top_list, \@page_candidtes);
+	}
 }
 sub candwin_show_page {
 	my $page = $_[1];
