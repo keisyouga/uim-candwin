@@ -110,8 +110,20 @@ sub create_button_right {
 	return $btn_right;
 }
 
+# move_window(window, x, y)
 sub move_window {
 	my ($w, $x, $y) = @_;
+
+	# adjust y position to fit screen
+	my $screenh = $w->g_winfo_screenheight();
+	my $winh = $w->g_winfo_reqheight();
+	if ($y + $winh > $screenh) {
+		$y = $y - $winh - 40; # above the caret
+		if ($y < 0) {
+			$y = 0;
+		}
+	}
+
 	$w->g_wm_geometry(sprintf("+%i+%i", $x, $y));
 }
 
@@ -126,7 +138,6 @@ sub create_window {
 	$top = $mw->new_toplevel();
 	$top->g_wm_withdraw();
 	$top->g_wm_overrideredirect(1);
-	move_window($top, $topx, $topy);
 	#$top->g_wm_attributes(-type => "tooltip");
 	#$top->g_wm_attributes(-topmost => 1); # always on top
 	#$top->g_wm_focusmodel('active');      # do not focus window
@@ -142,6 +153,8 @@ sub create_window {
 	Tkx::grid($top_list, -row => 0, -column => 0, -columnspan => 3);
 	Tkx::grid($b1, $top_label, $b2, -row => 1);
 
+	# after create child-window, move window
+	move_window($top, $topx, $topy);
 	$top->g_wm_deiconify();
 }
 
@@ -217,7 +230,6 @@ sub candwin_select {
 sub candwin_move {
 	my ($cmd, $x, $y) = @_;
 	debug_print "candwin_move $x, $y\n";
-	# todo: adjust position to fit screen
 	$topx = $x;
 	$topy = $y;
 	if ($top) {
