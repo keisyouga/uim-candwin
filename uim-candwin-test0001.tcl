@@ -1,4 +1,6 @@
-#!/usr/bin/tclsh
+#!/bin/sh
+# Tcl ignores the next line -*- tcl -*- \
+exec wish "$0" -- "$@"
 
 package require Tk
 
