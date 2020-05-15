@@ -27,7 +27,7 @@ my $topx;
 my $topy;
 
 ## stores candidates list in current page
-my @page_candidtes;
+my @page_candidates;
 
 ## listbox widget used for display candidates
 my $top_list = undef;
@@ -62,7 +62,7 @@ sub listboxselect_cb {
 sub create_listbox {
 	my $parent = shift;
 	my $list = $parent->new_listbox(-exportselection => 0);
-	set_listbox($list, \@page_candidtes);
+	set_listbox($list, \@page_candidates);
 	#$list->configure(-font => ['WenQuanYi Micro Hei Mono', 12]);
 	$list->g_bind('<<ListboxSelect>>', [\&listboxselect_cb, $list]);
 	return $list;
@@ -211,9 +211,9 @@ sub candwin_activate {
 		shift;                  # display_limit
 	}
 
-	@page_candidtes = map {s/\a/ /gr} @_;
+	@page_candidates = map {s/\a/ /gr} @_;
 	if ($top) {
-		set_listbox($top_list, \@page_candidtes);
+		set_listbox($top_list, \@page_candidates);
 	}
 
 	$candidate_index = -1;
@@ -282,9 +282,9 @@ sub candwin_set_page_candidates {
 	}
 
 	## set listbox variable
-	@page_candidtes = map {s/\a/ /gr} @_;
+	@page_candidates = map {s/\a/ /gr} @_;
 	if ($top) {
-		set_listbox($top_list, \@page_candidtes);
+		set_listbox($top_list, \@page_candidates);
 	}
 }
 sub candwin_show_page {
