@@ -13,15 +13,115 @@ proc debug_print {msg} {
 
 ################################################################
 ## global variables
-# is_active
+# set is_active 0
 # candidate_index
 # nr_candidates
 # display_limit
+set top {}
+# topx
+# topy
+# page_candidates
+# top_list
+# top_label
 
 wm withdraw .
 tk useinputmethods 0
-set listvar [list]
-listbox .lbox -listvariable listvar -exportselection 0
+
+proc listboxselect_cb {listbox} {
+	global candidate_index display_limit
+	set cursel [$listbox curselection]
+	if {![string match {[0-9]*} $cursel]} {
+		debug_print "<<ListboxSelect>>:$cursel\n"
+		return
+	}
+	set page [expr $candidate_index / $display_limit]
+	send_index [expr $page * $display_limit + $cursel]
+}
+
+proc create_listbox {parent} {
+	global page_candidates
+	set list [listbox $parent.lbox -exportselection 0]
+	set_listbox $list $page_candidates
+	bind $list  <<ListboxSelect>> "listboxselect_cb $list"
+	return $list
+}
+
+proc button_left_cb {} {
+	global candidate_index display_limit nr_candidates
+	set i [expr $candidate_index - $display_limit]
+	if {$i < 0} {
+		set pos [expr $candidate_index % $display_limit]
+		set lastpage [expr $nr_candidates / $display_limit]
+		set i [expr $lastpage * $display_limit + $pos]
+	}
+	send_index $i
+}
+
+proc create_label {parent} {
+	set label [label $parent.l -text "0/0"]
+	return $label
+}
+
+proc create_button_left {parent} {
+	set btn_left [button $parent.b_l -text "<" -command {button_left_cb}]
+	return $btn_left
+}
+
+proc button_right_cb {} {
+	global candidate_index display_limit nr_candidates
+	set i [expr $candidate_index + $display_limit]
+	set lastpage [expr $nr_candidates / $display_limit]
+	if {$i >= ($lastpage + 1) * $display_limit} {
+		set i [expr $candidate_index % $display_limit]
+	}
+	send_index $i
+}
+
+proc create_button_right {parent} {
+	set btn_right [button $parent.b_r -text ">" -command {button_right_cb}]
+	return $btn_right
+}
+
+proc move_window {w x y} {
+	set screenh [winfo screenheight $w]
+	set winh [winfo reqheight $w]
+	if {$y + $winh > $screenh} {
+		set y [expr $y - $winh - 40]
+		if {$y < 0} {
+			set y 0
+		}
+	}
+	wm geometry $w "+$x+$y"
+}
+
+proc create_window {} {
+	global top is_active top_list top_label topx topy
+	global candidate_index nr_candidates
+	if {$top ne {}} {
+		destroy $top
+	}
+	if {!$is_active} {
+		return
+	}
+
+	set top [toplevel .top]
+	wm withdraw $top
+	wm overrideredirect $top 1
+
+	set top_list [create_listbox $top]
+	set top_label [create_label $top]
+	$top_label configure -text "[expr 1 + $candidate_index]/$nr_candidates"
+	set b1 [create_button_left $top]
+	set b2 [create_button_right $top]
+
+	select_list
+
+	grid $top_list -row 0 -column 0 -columnspan 3
+	grid $b1 $top_label $b2 -row 1
+
+	move_window $top $topx $topy
+	wm deiconify $top
+}
 
 proc send_index {index} {
 	global nr_candidates candidate_index
@@ -34,51 +134,27 @@ proc send_index {index} {
 	set candidate_index $index
 }
 
-bind .lbox <<ListboxSelect>> {
-	global candidate_index display_limit
-	set cursel [.lbox curselection]
-	if {[expr ! [string is digit -strict $cursel]]} {
-		debug_print "<<ListboxSelect>>:$cursel\n"
-		return
-	}
-	set page [expr $candidate_index / $display_limit]
-	debug_print "$cursel/$page\n"
-	send_index [expr $page * $display_limit + $cursel]
-}
-
-button .btn< -text < -command {
-	global candidate_index display_limit
-	set i [expr $candidate_index - $display_limit]
-	if [expr $i < 0] {
-		set pos [expr $candidate_index % $display_limit]
-		set lastpage [expr $nr_candidates / $display_limit]
-		set i [expr $lastpage * $display_limit + $pos]
-	}
-	send_index $i
-}
-button .btn> -text > -command {
-	global candidate_index display_limit
-	set i [expr $candidate_index + $display_limit]
-	set lastpage [expr $nr_candidates / $display_limit]
-	if [expr $i >= [expr ($lastpage + 1) * $display_limit]] {
-		set i [expr $candidate_index % $display_limit]
-	}
-	send_index $i
-}
-label .l -text 0/0
-grid .lbox -row 0 -column 0 -columnspan 3
-grid .btn< .l .btn> -row 1
-
-wm attributes . -topmost
-wm focusmodel . active
-
 proc show_delay {} {
-	global is_active
-	after 100 {if {$is_active} {wm deiconify .}}
+	after 100 {create_window}
+}
+
+proc set_listbox {listbox cands} {
+	$listbox delete 0 end
+	foreach e $cands {
+		$listbox insert end $e
+	}
+}
+
+proc select_list {} {
+	global top_label top_list nr_candidates candidate_index display_limit
+	$top_label configure -text "[expr 1 + $candidate_index]/$nr_candidates"
+	$top_list selection clear 0 $display_limit
+	$top_list selection set [expr $candidate_index % $display_limit]
 }
 
 proc candwin_activate {msg} {
-	global display_limit candidate_index nr_candidates is_active listvar
+	global display_limit candidate_index nr_candidates is_active
+	global top top_list page_candidates
 	set f1 [lindex $msg 1]
 	set charset UTF-8
 	if {[string equal -length 8 $f1 {charset=}]} {
@@ -94,25 +170,35 @@ proc candwin_activate {msg} {
 	}
 
 	set tmp [lrange $msg $i end]
-	set tmp2 "\{[join $tmp "\} \{"]\}"
-	set listvar [string map {\a { }} $tmp2]
+	set page_candidates {}
+	foreach e $tmp {
+		lappend page_candidates [string map {\a { }} $e]
+	}
+	if {$top ne {}} {
+		set_listbox $top_list $page_candidates
+	}
 
 	set candidate_index -1
-	set nr_candidates [llength $listvar]
+	set nr_candidates [llength $page_candidates]
 	set is_active 1
 	show_delay
 }
 proc candwin_select {msg} {
-	global candidate_index nr_candidates display_limit
+	global top candidate_index
 	set candidate_index [lindex $msg 1]
-	.l configure -text "[expr 1 + $candidate_index]/$nr_candidates"
-	.lbox selection clear 0 $display_limit
-	.lbox selection set [expr $candidate_index % $display_limit]
+	if {$top ne {}} {
+		select_list
+	}
 }
 proc candwin_move {msg} {
+	global top topx topy
 	set x [lindex $msg 1]
 	set y [lindex $msg 2]
-	wm geometry . +$x+$y
+	set topx $x
+	set topy $y
+	if {$top ne {}} {
+		move_window $top $x $y
+	}
 }
 proc candwin_show {msg} {
 	global is_active
@@ -121,23 +207,35 @@ proc candwin_show {msg} {
 	}
 }
 proc candwin_hide {msg} {
-	wm withdraw .
+	global top is_active
+	if {$top ne {}} {
+		destroy $top
+		set top {}
+	}
+	set is_active 0
 }
 proc candwin_deactivate {msg} {
-	global is_active
-	wm withdraw .
+	global top is_active
+	if {$top ne {}} {
+		destroy $top
+		set top {}
+	}
 	set is_active 0
 }
 proc candwin_set_nr_candidates {msg} {
 	global candidate_index nr_candidates display_limit is_active
+	global top top_label
 	set candidate_index -1
 	set nr_candidates [lindex $msg 1]
-	.l configure -text "0/$nr_candidates"
 	set display_limit [lindex $msg 2]
+
+	if {$top ne {}} {
+		$top_label configure -text "0/$nr_candidates"
+	}
 	set is_active 1
 }
 proc candwin_set_page_candidates {msg} {
-	global listvar
+	global page_candidates top top_list
 
 	set f1 [lindex $msg 1]
 	set charset UTF-8
@@ -153,13 +251,14 @@ proc candwin_set_page_candidates {msg} {
 		set i 3
 	}
 
-	## use listvariable
-	# a1 \a b1 \a c1 \f a2 \a b2 \a c2 \f ...
-	#   => "a1 b1 c1" "a2 b2 c2" ...
 	set tmp [lrange $msg $i end]
-	set tmp2 "\"[join $tmp "\" \""]\""
-	set listvar [string map {\a { }} $tmp2]
-	debug_print "set_page_candidates:$listvar\n"
+	set page_candidates {}
+	foreach e $tmp {
+		lappend page_candidates [string map {\a { }} $e]
+	}
+	if {$top ne {}} {
+		set_listbox $top_list $page_candidates
+	}
 }
 proc candwin_show_page {msg} {
 	set page [lindex $msg 1]
@@ -201,15 +300,14 @@ proc read_cb {chan} {
 	set data [read $chan]
 
 	# eof?
-    if {[eof $chan]} {
-        #fileevent $chan readable {}
+	if {[eof $chan]} {
+		#fileevent $chan readable {}
 		exit
-    }
+	}
 
-	# escape "
-	set data [string map { \" {\\\"} } $data]
-	## split $data: msg1\f\fmsg2\f\f ... => "msg1" "msg2" "..."
-	set msgs [string cat \"[string map { \f\f "\" \"" } $data]\"]
+	## split $data on \f\f into tcl list
+	## $data: msg1\f\fmsg2\f\f ...
+	set msgs [split [string map { \f\f \0 } $data] \0]
 	debug_print "read_cb:<$msgs>\n"
 	foreach msg $msgs {
 		parse $msg
